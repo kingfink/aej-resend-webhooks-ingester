@@ -14,6 +14,7 @@ fi
 source "$ENV_FILE"
 
 REGION="${REGION:-us-east4}"
+AR_LOCATION="${AR_LOCATION:-$REGION}"
 AR_REPO="${AR_REPO:-webhooks}"
 
 : "${PROJECT_ID:?PROJECT_ID must be set in .env}"
@@ -37,10 +38,10 @@ for command_name in gcloud docker; do
 done
 
 SOURCE_IMAGE="ghcr.io/resend/resend-webhooks-ingester:${IMAGE_TAG}"
-TARGET_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/resend-webhooks-ingester:${IMAGE_TAG}"
+TARGET_IMAGE="${AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/resend-webhooks-ingester:${IMAGE_TAG}"
 
 echo "Configuring Docker authentication for Artifact Registry..."
-gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+gcloud auth configure-docker "${AR_LOCATION}-docker.pkg.dev" --quiet
 
 echo "Pulling $SOURCE_IMAGE..."
 docker pull --platform=linux/amd64 "$SOURCE_IMAGE"

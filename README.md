@@ -18,6 +18,10 @@ cp .env.example .env
 $EDITOR .env
 ```
 
+`REGION` controls Cloud Run. `AR_LOCATION` and `BQ_LOCATION` independently
+control Artifact Registry and BigQuery; they may be regional values such as
+`us-east1` or supported multi-regions such as `us` and `US`.
+
 2. Provision GCP resources and create the BigQuery tables:
 
 ```bash
@@ -103,7 +107,23 @@ python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
 gcloud auth application-default login
+source .env
+gcloud auth application-default set-quota-project "$PROJECT_ID"
 ```
+
+Google client libraries use `GOOGLE_APPLICATION_CREDENTIALS` before the user
+credentials created by `gcloud auth application-default login`. If that
+environment variable points to a different service account, either grant that
+account BigQuery access or unset it for the backfill process:
+
+```bash
+env -u GOOGLE_APPLICATION_CREDENTIALS python scripts/backfill.py
+```
+
+The active principal needs permission to create BigQuery jobs in the project
+and edit data in the configured dataset. The script checks job creation before
+requesting any pages from Resend and reports the active credential source when
+that check fails.
 
 Set `RESEND_API_KEY` in the ignored `.env` file, then run:
 

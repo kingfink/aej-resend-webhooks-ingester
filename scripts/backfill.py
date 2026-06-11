@@ -14,6 +14,8 @@ from pathlib import Path
 from typing import Any
 
 import requests
+from google.api_core.exceptions import GoogleAPICallError
+from google.auth.exceptions import DefaultCredentialsError
 from google.cloud import bigquery
 
 API_URL = "https://api.resend.com/emails"
@@ -256,6 +258,33 @@ def merge_rows(
     print(f"Merged {len(rows)} rows into {target_table}.")
 
 
+def verify_bigquery_access(
+    client: bigquery.Client,
+    *,
+    project_id: str,
+    location: str | None,
+) -> None:
+    """Verify the active credentials can create BigQuery jobs."""
+    try:
+        client.query("SELECT 1 AS credential_check", location=location).result()
+    except GoogleAPICallError as exc:
+        credential_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+        credential_source = (
+            f"GOOGLE_APPLICATION_CREDENTIALS={credential_path}"
+            if credential_path
+            else "the default Application Default Credentials chain"
+        )
+        raise RuntimeError(
+            "BigQuery credential preflight failed for project "
+            f"{project_id} using {credential_source}. "
+            "The active principal needs bigquery.jobs.create permission.\n"
+            f"Google API error: {exc}\n"
+            "If you intended to use credentials from "
+            "`gcloud auth application-default login`, run:\n"
+            "  env -u GOOGLE_APPLICATION_CREDENTIALS python scripts/backfill.py"
+        ) from exc
+
+
 def main() -> int:
     root_dir = Path(__file__).resolve().parent.parent
     load_env_file(root_dir / ".env")
@@ -268,6 +297,17 @@ def main() -> int:
     if not args.project_id or args.project_id == "your-gcp-project-id":
         print("PROJECT_ID or --project-id is required.", file=sys.stderr)
         return 2
+
+    try:
+        client = bigquery.Client(project=args.project_id)
+        verify_bigquery_access(
+            client,
+            project_id=args.project_id,
+            location=os.environ.get("BQ_LOCATION"),
+        )
+    except (DefaultCredentialsError, RuntimeError) as exc:
+        print(exc, file=sys.stderr)
+        return 1
 
     run_timestamp = datetime.now(timezone.utc)
     with requests.Session() as session:
@@ -282,7 +322,6 @@ def main() -> int:
             )
         )
 
-    client = bigquery.Client(project=args.project_id)
     merge_rows(
         client,
         project_id=args.project_id,

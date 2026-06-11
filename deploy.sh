@@ -14,6 +14,7 @@ fi
 source "$ENV_FILE"
 
 REGION="${REGION:-us-east4}"
+AR_LOCATION="${AR_LOCATION:-$REGION}"
 AR_REPO="${AR_REPO:-webhooks}"
 SERVICE_NAME="${SERVICE_NAME:-resend-webhooks-ingester}"
 BQ_DATASET_ID="${BQ_DATASET_ID:-resend_webhooks}"
@@ -37,7 +38,7 @@ if ! command -v gcloud >/dev/null 2>&1; then
   exit 1
 fi
 
-IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/resend-webhooks-ingester:${IMAGE_TAG}"
+IMAGE="${AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/resend-webhooks-ingester:${IMAGE_TAG}"
 SERVICE_ACCOUNT_EMAIL="${SERVICE_ACCOUNT_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 
 gcloud run deploy "$SERVICE_NAME" \

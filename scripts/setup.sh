@@ -47,6 +47,8 @@ fi
 source "$ENV_FILE"
 
 REGION="${REGION:-us-east4}"
+AR_LOCATION="${AR_LOCATION:-$REGION}"
+BQ_LOCATION="${BQ_LOCATION:-$REGION}"
 AR_REPO="${AR_REPO:-webhooks}"
 BQ_DATASET_ID="${BQ_DATASET_ID:-resend_webhooks}"
 SERVICE_ACCOUNT_NAME="${SERVICE_ACCOUNT_NAME:-resend-ingester}"
@@ -76,12 +78,12 @@ gcloud services enable \
   --project="$PROJECT_ID"
 
 if ! gcloud artifacts repositories describe "$AR_REPO" \
-  --location="$REGION" \
+  --location="$AR_LOCATION" \
   --project="$PROJECT_ID" >/dev/null 2>&1; then
   echo "Creating Artifact Registry repository $AR_REPO..."
   gcloud artifacts repositories create "$AR_REPO" \
     --repository-format=docker \
-    --location="$REGION" \
+    --location="$AR_LOCATION" \
     --description="Mirrored images for webhook services" \
     --project="$PROJECT_ID"
 else
@@ -100,9 +102,9 @@ fi
 
 if ! bq --project_id="$PROJECT_ID" show \
   "${PROJECT_ID}:${BQ_DATASET_ID}" >/dev/null 2>&1; then
-  echo "Creating BigQuery dataset $BQ_DATASET_ID in $REGION..."
+  echo "Creating BigQuery dataset $BQ_DATASET_ID in $BQ_LOCATION..."
   bq --project_id="$PROJECT_ID" \
-    --location="$REGION" \
+    --location="$BQ_LOCATION" \
     mk --dataset "${PROJECT_ID}:${BQ_DATASET_ID}"
 else
   echo "BigQuery dataset $BQ_DATASET_ID already exists."
@@ -114,12 +116,12 @@ sed \
   -e "s/YOUR_DATASET/${BQ_DATASET_ID}/g" \
   "$SCHEMA_FILE" |
   bq --project_id="$PROJECT_ID" \
-    --location="$REGION" \
+    --location="$BQ_LOCATION" \
     query --use_legacy_sql=false
 
 echo "Granting dataset-scoped BigQuery Data Editor..."
 bq --project_id="$PROJECT_ID" \
-  --location="$REGION" \
+  --location="$BQ_LOCATION" \
   query --use_legacy_sql=false \
   "GRANT \`roles/bigquery.dataEditor\` ON SCHEMA \`${PROJECT_ID}\`.${BQ_DATASET_ID} TO \"serviceAccount:${SERVICE_ACCOUNT_EMAIL}\""
 
@@ -189,7 +191,9 @@ cat <<EOF
 
 Setup complete.
 Project:         $PROJECT_ID
-Region:          $REGION
+Cloud Run region: $REGION
+Artifact Registry location: $AR_LOCATION
+BigQuery location: $BQ_LOCATION
 Dataset:         $BQ_DATASET_ID
 Service account: $SERVICE_ACCOUNT_EMAIL
 Secret:          $SECRET_NAME
