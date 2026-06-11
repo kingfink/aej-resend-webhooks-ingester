@@ -9,7 +9,7 @@
 --   * Partition webhook tables by event_created_at instead of
 --     webhook_received_at so event-time queries prune partitions.
 --   * Preserve upstream clustering by event_type and entity identifier.
---   * Add resend_emails_backfill for latest-status historical snapshots.
+--   * Add latest-state email and contact backfill tables.
 --
 -- Replace YOUR_PROJECT and YOUR_DATASET before running this file. For example:
 --   sed -e 's/YOUR_PROJECT/my-project/g' \
@@ -89,3 +89,25 @@ CREATE TABLE IF NOT EXISTS `YOUR_PROJECT.YOUR_DATASET.resend_emails_backfill` (
 )
 PARTITION BY DATE(created_at)
 CLUSTER BY last_event, email_id;
+
+-- One row per contact. Missing contacts are retained with their last_seen_at.
+CREATE TABLE IF NOT EXISTS `YOUR_PROJECT.YOUR_DATASET.resend_contacts_backfill` (
+  contact_id STRING NOT NULL,
+  email STRING NOT NULL,
+  first_name STRING,
+  last_name STRING,
+  unsubscribed BOOL NOT NULL,
+  created_at TIMESTAMP NOT NULL,
+  properties JSON,
+  segment_ids ARRAY<STRING>,
+  topics ARRAY<STRUCT<
+    topic_id STRING,
+    name STRING,
+    description STRING,
+    subscription STRING
+  >>,
+  backfilled_at TIMESTAMP NOT NULL,
+  last_seen_at TIMESTAMP NOT NULL
+)
+PARTITION BY DATE(created_at)
+CLUSTER BY unsubscribed, contact_id;

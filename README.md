@@ -94,11 +94,15 @@ Never use an unpinned image tag.
 
 ## Backfill
 
-The Resend List Sent Emails API exposes one latest-status snapshot per email.
-It does not expose the historical sequence of delivered, opened, clicked, or
-other webhook events. The backfill therefore writes only to
-`resend_emails_backfill`; it never creates synthetic rows in the webhook event
-tables.
+The backfill writes latest-state snapshots to `resend_emails_backfill` and
+`resend_contacts_backfill`; it never creates synthetic rows in the webhook
+event tables. The sent-email API exposes one latest status per email, not the
+historical sequence of delivered, opened, clicked, or other webhook events.
+
+Contact snapshots include custom properties, segment memberships, and topic
+subscriptions. Contacts missing from a later API scan remain in BigQuery with
+their previous `last_seen_at`; the backfill does not infer that they were
+deleted.
 
 Create a local environment and authenticate Application Default Credentials:
 
@@ -131,16 +135,25 @@ Set `RESEND_API_KEY` in the ignored `.env` file, then run:
 python scripts/backfill.py
 ```
 
-To bound the walk to emails created on or after a date:
+The default command backfills emails and contacts. To run only one pipeline:
+
+```bash
+python scripts/backfill.py --emails-only
+python scripts/backfill.py --contacts-only
+```
+
+To bound the email walk to messages created on or after a date:
 
 ```bash
 python scripts/backfill.py --since 2026-01-01
 ```
 
-The script requests at most 100 emails per page, stays below approximately two
-requests per second, retries rate limits and transient server errors, and
-merges on `email_id`. Rerunning it updates existing snapshots rather than
-duplicating them.
+`--since` does not limit contacts because the contact pipeline must scan the
+complete list for `last_seen_at` to be meaningful. The script requests at most
+100 objects per page, stays below approximately two requests per second,
+retries rate limits and transient server errors, and merges on the Resend
+object ID. Contact runs take longer because each contact requires additional
+requests for properties, segments, and topics.
 
 The webhook go-live date is the event-history floor for downstream models.
 Record that date in your own operational documentation. Before that date, the
